@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPLV Premium Calculator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=DejaVu+Sans&display=swap" rel="stylesheet">
+    <style>
+        #output {
+            font-family: 'DejaVu Sans', 'Courier New', monospace, 'Noto Sans', Arial, sans-serif;
+        }
+        .rupee-test {
+            display: none;
+        }
+    </style>
+</head>
+<body class="bg-green-100 flex justify-center items-center min-h-screen">
+    <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-4xl">
+        <h1 class="text-2xl font-bold text-left mb-4">SPLV Premium Calculator</h1>
+        <form id="calculator-form" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Policy Type -->
+            <div>
+                <label for="policy_type" class="block text-sm font-medium">Policy Type:</label>
+                <select id="policy_type" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                    <option value="Package Policy" selected>Package Policy</option>
+                    <option value="Third Party">Third Party</option>
+                </select>
+            </div>
+            <!-- Zone -->
+            <div>
+                <label for="zone" class="block text-sm font-medium">Zone:</label>
+                <select id="zone" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                    <option value="A">A</option>
+                    <option value="B">B</option>
+                    <option value="C" selected>C</option>
+                </select>
+            </div>
+            <!-- IDV -->
+            <div>
+                <label for="idv" class="block text-sm font-medium">IDV (Rs.):</label>
+                <input type="number" id="idv" value="1000000" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" step="any">
+            </div>
+            <!-- Vehicle Age -->
+            <div>
+                <label for="vehicle_age" class="block text-sm font-medium">Age of Vehicle (Years):</label>
+                <select id="vehicle_age" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                    <option value="0-1">0-1</option>
+                    <option value="1-2">1-2</option>
+                    <option value="2-3" selected>2-3</option>
+                    <option value="3-4">3-4</option>
+                    <option value="4-5">4-5</option>
+                    <option value="5-6">5-6</option>
+                    <option value="6-7">6-7</option>
+                    <option value="7-8">7-8</option>
+                    <option value="8-9">8-9</option>
+                    <option value="9-10">9-10</option>
+                    <option value="above 10">above 10</option>
+                </select>
+            </div>
+            <!-- NCB -->
+            <div>
+                <label for="ncb" class="block text-sm font-medium">NCB (%):</label>
+                <select id="ncb" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                    <option value="0" selected>0</option>
+                    <option value="20">20</option>
+                    <option value="25">25</option>
+                    <option value="35">35</option>
+                    <option value="45">45</option>
+                    <option value="50">50</option>
+                </select>
+            </div>
+            <!-- OD Discount -->
+            <div>
+                <label for="discount" class="block text-sm font-medium">OD Discount (%):</label>
+                <input type="number" id="discount" value="0" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" min="0" max="100" step="any">
+            </div>
+            <!-- Checkboxes -->
+            <div class="col-span-2 space-y-2">
+                <label class="flex items-center">
+                    <input type="checkbox" id="imt23" class="mr-2">
+                    IMT-23
+                </label>
+                <label class="flex items-center">
+                    <input type="checkbox" id="imt47" class="mr-2">
+                    IMT-47 (Overturning)
+                </label>
+                <label class="flex items-center">
+                    <input type="checkbox" id="nil_dep" class="mr-2">
+                    Nil Dep
+                </label>
+                <label class="flex items-center">
+                    <input type="checkbox" id="driver" class="mr-2">
+                    Driver
+                </label>
+                <label class="flex items-center">
+                    <input type="checkbox" id="ll_nfpp" class="mr-2">
+                    LL to NFPP
+                </label>
+            </div>
+            <!-- Buttons -->
+            <div class="col-span-2 flex justify-left space-x-4 mt-4">
+                <button type="button" onclick="calculatePremium()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Calculate Premium</button>
+                <button type="button" onclick="resetForm()" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">Reset</button>
+                <button type="button" onclick="generatePDF()" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">Generate PDF</button>
+            </div>
+        </form>
+        <!-- Output -->
+        <div class="mt-6">
+            <pre id="output" class="bg-gray-100 p-4 rounded-md text-sm h-96 overflow-auto"></pre>
+        </div>
+        <!-- Rupee Symbol Test -->
+        <div class="rupee-test" id="rupee-test">\u20B9</div>
+    </div>
+
+    <script>
+        // Constants
+        const AGE_OPTIONS = ["0-1", "1-2", "2-3", "3-4", "4-5", "5-6", "6-7", "7-8", "8-9", "9-10", "above 10"];
+        const NCB_OPTIONS = [0, 20, 25, 35, 45, 50];
+
+        const AGE_MAPPING = {
+            "0-1": "upto5", "1-2": "upto5", "2-3": "upto5", "3-4": "upto5", "4-5": "upto5",
+            "5-6": "5to7", "6-7": "5to7",
+            "7-8": "above7", "8-9": "above7", "9-10": "above7", "above 10": "above7"
+        };
+
+        const OD_RATES = {
+            "upto5": {"A": 1.208, "B": 1.202, "C": 1.190},
+            "5to7": {"A": 1.238, "B": 1.232, "C": 1.220},
+            "above7": {"A": 1.268, "B": 1.262, "C": 1.250}
+        };
+
+        const NIL_DEP_RATES = {
+            "0-1": 0.29,
+            "1-2": 0.31,
+            "2-3": 0.36,
+            "3-4": 0.43,
+            "4-5": 0.53
+        };
+
+        // Test Rupee symbol rendering
+        const rupeeTest = document.getElementById('rupee-test').innerText;
+        console.log('Rupee symbol test:', rupeeTest === '\u20B9', 'Actual:', rupeeTest);
+
+        // Initialize Nil Dep state on page load
+        function updateNilDepState() {
+            let age_band = document.getElementById('vehicle_age').value;
+            let nil_dep = document.getElementById('nil_dep');
+            if (["5-6", "6-7", "7-8", "8-9", "9-10", "above 10"].includes(age_band)) {
+                nil_dep.disabled = true;
+                nil_dep.checked = false;
+            } else {
+                nil_dep.disabled = false;
+            }
+        }
+
+        // Attach event listener and trigger on load
+        document.getElementById('vehicle_age').addEventListener('change', updateNilDepState);
+        updateNilDepState();
+
+        function get_od_rate(age_band, zone) {
+            let age_key = AGE_MAPPING[age_band];
+            return OD_RATES[age_key][zone];
+        }
+
+        function calculate_nil_dep_premium(age_band, idv, nil_dep) {
+            let nil_dep_premium = 0.0;
+            let warning = null;
+
+            if (nil_dep && age_band in NIL_DEP_RATES) {
+                nil_dep_premium = idv * NIL_DEP_RATES[age_band] / 100;
+            } else if (nil_dep) {
+                warning = `Warning: Nil Dep premium not available for vehicle age '${age_band}'.`;
+            }
+
+            return [nil_dep_premium, warning];
+        }
+
+        function formatRow(label, value, is_right_col = false) {
+            let formatted_value;
+            if (typeof value === 'number' && !isNaN(value)) {
+                formatted_value = `\u20B9${value.toFixed(2)}`;
+                // Fallback: formatted_value = `Rs.${value.toFixed(2)}`;
+            } else {
+                formatted_value = value.toString();
+            }
+            let label_length = 35;
+            let formatted_label = label.padEnd(label_length, ' ');
+            return `${formatted_label} ${formatted_value}`;
+        }
+
+        function calculatePremium() {
+            console.log('Starting calculatePremium');
+            try {
+                // Get inputs
+                let policy_type = document.getElementById('policy_type').value;
+                let vehicle_age = document.getElementById('vehicle_age').value;
+                let zone = document.getElementById('zone').value;
+                let idv = parseFloat(document.getElementById('idv').value);
+                let ncb = parseFloat(document.getElementById('ncb').value);
+                let discount = parseFloat(document.getElementById('discount').value);
+                let imt23 = document.getElementById('imt23').checked;
+                let imt47 = document.getElementById('imt47').checked;
+                let nil_dep = document.getElementById('nil_dep').checked;
+                let driver = document.getElementById('driver').checked;
+                let ll_nfpp = document.getElementById('ll_nfpp').checked;
+
+                console.log('Inputs:', { policy_type, vehicle_age, zone, idv, ncb, discount, imt23, imt47, nil_dep, driver, ll_nfpp });
+
+                // Initialize all variables
+                let basic_tp_premium = 0, tp_premium = 0, basic_od_premium = 0, imt23_premium = 0;
+                let imt47_premium = 0, nil_dep_premium = 0, ncb_discount = 0, od_after_ncb = 0;
+                let od_discount = 0, od_after_discount = 0, net_od_premium = 0, od_rate = 0;
+                let od_before_ncb = 0, warning = null;
+
+                if (policy_type === "Third Party") {
+                    basic_tp_premium = 7267;
+                    tp_premium = basic_tp_premium;
+                    idv = 0.0;
+                    ncb = 0.0;
+                    discount = 0.0;
+                    basic_od_premium = 0.0;
+                    imt23_premium = 0.0;
+                    imt47_premium = 0.0;
+                    nil_dep_premium = 0.0;
+                    ncb_discount = 0.0;
+                    od_after_ncb = 0.0;
+                    od_discount = 0.0;
+                    od_after_discount = 0.0;
+                    net_od_premium = 0.0;
+                    od_rate = 0.0;
+                } else {
+                    if (isNaN(idv) || idv <= 0) throw new Error("IDV must be a positive number.");
+                    if (isNaN(discount) || discount < 0 || discount > 100) throw new Error("Discount must be between 0 and 100%.");
+
+                    basic_tp_premium = 7267;
+                    tp_premium = basic_tp_premium;
+                    od_rate = get_od_rate(vehicle_age, zone);
+                    basic_od_premium = (idv * od_rate) / 100;
+
+                    imt23_premium = imt23 ? basic_od_premium * 0.15 : 0.0;
+                    imt47_premium = imt47 ? idv * 0.5 / 100 : 0.0;
+                    od_before_ncb = basic_od_premium + imt23_premium + imt47_premium;
+
+                    ncb_discount = od_before_ncb * ncb / 100;
+                    od_after_ncb = od_before_ncb - ncb_discount;
+
+                    od_discount = od_after_ncb * discount / 100;
+                    od_after_discount = od_after_ncb - od_discount;
+
+                    [nil_dep_premium, warning] = calculate_nil_dep_premium(vehicle_age, idv, nil_dep);
+                    net_od_premium = od_after_discount + nil_dep_premium;
+                }
+
+                let driver_premium = driver ? 50 : 0;
+                let ll_nfpp_premium = 0.0;
+                let number_of_nfpp = 0;
+
+                if (ll_nfpp) {
+                    let nfpp_input = prompt("Enter number of Non-Fare Paying Passengers (0-8):", "0");
+                    if (nfpp_input !== null) {
+                        number_of_nfpp = parseInt(nfpp_input);
+                        if (isNaN(number_of_nfpp) || number_of_nfpp < 0 || number_of_nfpp > 8) {
+                            throw new Error("Number of NFPP must be between 0 and 8.");
+                        }
+                        ll_nfpp_premium = number_of_nfpp * 60;
+                    }
+                }
+
+                tp_premium += driver_premium + ll_nfpp_premium;
+
+                let gst = (net_od_premium + tp_premium) * 18 / 100;
+                let net_premium = net_od_premium + tp_premium + gst;
+
+                let total_payout = 0.0;
+                if (policy_type === "Package Policy") {
+                    if (["0-1", "1-2", "2-3", "3-4", "4-5", "5-6", "6-7", "7-8", "8-9", "9-10"].includes(vehicle_age)) {
+                        total_payout = (net_od_premium * 0.175) + (tp_premium * 0.075);
+                    }
+                } else {
+                    if (["0-1", "1-2", "2-3"].includes(vehicle_age)) {
+                        total_payout = tp_premium * 0.125;
+                    } else {
+                        total_payout = tp_premium * 0.10;
+                    }
+                }
+
+                console.log('Calculation Results:', { net_premium, total_payout });
+
+                let output = [
+                    "---------- PREMIUM DETAILS ----------",
+                    formatRow("Policy Type", policy_type),
+                    formatRow("IDV", idv),
+                    formatRow("Age Band", vehicle_age),
+                    formatRow("Zone", zone),
+                    formatRow("OD Premium Rate", od_rate),
+                    formatRow("Basic OD Premium", basic_od_premium),
+                    formatRow("IMT-23 Premium", imt23_premium),
+                    formatRow("IMT-47 Premium", imt47_premium),
+                    formatRow("OD Before NCB", od_before_ncb),
+                    formatRow("NCB Discount", ncb_discount),
+                    formatRow("OD After NCB", od_after_ncb),
+                    formatRow("OD Discount", od_discount),
+                    formatRow("OD After Discount", od_after_discount),
+                    formatRow("Nil Dep Premium", nil_dep_premium),
+                    formatRow("Net OD Premium", net_od_premium),
+                    formatRow("Basic TP Premium", basic_tp_premium),
+                    formatRow("TP Premium", tp_premium),
+                    formatRow("GST", gst),
+                    formatRow("Final Payable", net_premium),
+                    "\n---------- ADDITIONAL PREMIUMS ----------",
+                    formatRow("IMT-23", imt23_premium),
+                    formatRow("IMT-47 (Overturning)", imt47_premium),
+                    formatRow("Nil Dep", nil_dep_premium),
+                    "\n---------- TP ADD-ONS ----------",
+                    formatRow("Driver", driver_premium),
+                    formatRow(`LL to NFPP (${number_of_nfpp} pax)`, ll_nfpp_premium),
+                    "\n---------- PAYOUT DETAILS ----------",
+                    formatRow("Total Payout (Comm.+Incen)", total_payout)
+                ];
+
+                if (warning) {
+                    output.push("\n" + warning);
+                }
+
+                const outputText = output.join('\n');
+                console.log('Output text includes Rupee symbol:', outputText.includes('\u20B9'));
+                document.getElementById('output').innerText = outputText;
+                console.log('Output set successfully');
+            } catch (e) {
+                console.error('Error in calculatePremium:', e);
+                alert(`Error: ${e.message}`);
+                document.getElementById('output').innerText = `Error: ${e.message}`;
+            }
+        }
+
+        function resetForm() {
+            document.getElementById('calculator-form').reset();
+            document.getElementById('policy_type').value = 'Package Policy';
+            document.getElementById('zone').value = 'C';
+            document.getElementById('idv').value = '1000000';
+            document.getElementById('vehicle_age').value = '2-3';
+            document.getElementById('ncb').value = '0';
+            document.getElementById('discount').value = '0';
+            document.getElementById('imt23').checked = false;
+            document.getElementById('imt47').checked = false;
+            document.getElementById('nil_dep').checked = false;
+            document.getElementById('nil_dep').disabled = false;
+            document.getElementById('driver').checked = false;
+            document.getElementById('ll_nfpp').checked = false;
+            document.getElementById('output').innerText = '';
+            updateNilDepState();
+        }
+
+        function generatePDF() {
+            calculatePremium();
+            let output_text = document.getElementById('output').innerText;
+            if (!output_text || output_text.startsWith('Error:')) {
+                alert('Please calculate the premium successfully first!');
+                return;
+            }
+
+            const { jsPDF } = window.jspdf;
+            let doc = new jsPDF();
+            doc.setFontSize(12);
+            doc.setFont('times', 'normal');
+            // Fallback: output_text = output_text.replace(/\u20B9/g, 'Rs.');
+            let lines = output_text.split('\n');
+            let y_position = 10;
+            lines.forEach(line => {
+                doc.text(line, 10, y_position);
+                y_position += 10;
+                if (y_position > 280) {
+                    doc.addPage();
+                    y_position = 10;
+                }
+            });
+            doc.save('splv_premium_calculation.pdf');
+            alert('PDF Generated!');
+        }
+    </script>
+</body>
+</html>
